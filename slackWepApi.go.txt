@@ -1,0 +1,61 @@
+package slack
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+)
+
+var (
+	users map[string]SlackUserInfo
+)
+
+func init() {
+	users = make(map[string]SlackUserInfo)
+}
+func joinChannel(token, name string) (string, error) {
+	var url = fmt.Sprintf("https://slack.com/api/channels.join?token=%s&name=%s", token, name)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "-error-", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "-error-", err
+	}
+	info := ChanelInfo{}
+	json.Unmarshal(body, &info)
+	if !info.Ok {
+		return "-error-", fmt.Errorf("channels.join : %v", info.Error)
+	}
+	return info.Channel.ID, nil
+}
+
+func userInfo(token, name string) (SlackUserInfo, error) {
+	_ = "breakpoint"
+	if len(name) == 0 {
+		return SlackUserInfo{}, fmt.Errorf("No name supplied")
+	}
+	if user, ok := users[name]; ok {
+		return user, nil
+	}
+	var url = fmt.Sprintf("https://slack.com/api/users.info?token=%s&user=%s", token, name)
+	resp, err := http.Get(url)
+	if err != nil {
+		return SlackUserInfo{}, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return SlackUserInfo{}, err
+	}
+	info := SlackUserInfo{}
+	json.Unmarshal(body, &info)
+	if !info.Ok {
+		return SlackUserInfo{}, fmt.Errorf("users.info : %v", info.Error)
+	}
+	users[name] = info
+	return info, nil
+}
